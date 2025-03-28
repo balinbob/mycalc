@@ -22,7 +22,7 @@ class MyWindow(Gtk.Window):
         self.right_align_tag = self.textview.get_buffer().create_tag("right_align", justification=Gtk.Justification.RIGHT)
         self.previous_op = ''
         self.previous_button_char = ''
-
+        self.num_digits = 0
         calc_labels = ['7', '8', '9', '+', '4', '5', '6', '-', '1', '2', '3', '*', '=', '0', '.', '/']
         for i in range(4):
             for j in range(4):
@@ -50,7 +50,8 @@ class MyWindow(Gtk.Window):
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
         self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)                
-        
+        # self.relocate_op_char()
+
     def scroll_buffer(self):
         end_iter = self.buffer.get_end_iter()
         mark = self.buffer.create_mark(None, end_iter, False)
@@ -77,30 +78,15 @@ class MyWindow(Gtk.Window):
 
     def get_text_for_line(self, line_num):
         (begin, end) = self.get_line(line_num)
-        return self.buffer.get_text(begin, end, -1).strip('=+1*/')
+        return self.buffer.get_text(begin, end, -1).strip(' ')
     
     def get_line_start_iter(self):
         cursor_iter = self.buffer.get_iter_at_mark(self.buffer.get_insert())
         return cursor_iter, self.buffer.get_iter_at_line(cursor_iter.get_line())
     
     def put_op_char(self, this_op):
-        # Get the cursor position
-        # cursor_iter, line_start_iter = self.get_line_start_iter()
-        # Insert the character at the line start
-        # self.buffer.insert(line_start_iter, this_op + '    ')
-        # self.cursor_to_end()
-    #    iter = self.buffer.get_iter_at_mark(self.buffer.get_insert())
-    #    iter.forward_to_line_end()
-    #    self.buffer.place_cursor(iter)
         self.buffer.insert_at_cursor(this_op + '    ', -1)
-        # Move the cursor to the newly inserted character (optional)
-        # cursor_iter, line_start_iter = self.get_line_start_iter()
-        # new_cursor_iter = self.buffer.get_iter_at_line_offset(cursor_iter.get_line(), line_start_iter.get_offset() + 2) # +2 for the char and space
-        # self.buffer.place_cursor(new_cursor_iter)
-
-        # Ensure the cursor is visible
-        # self.textview.scroll_to_iter(new_cursor_iter, 0.0, True, 0.0, 0.0)
-
+    
     def on_button_clicked(self, button):
         if button.get_label() in ['=', '+', '-', '*', '/']:
             print('pb: ', self.previous_button_char)
@@ -121,7 +107,6 @@ class MyWindow(Gtk.Window):
             print('current line:', self.current_line)
             if self.current_line > 2:
                 self.scroll_buffer()
-            
             self.op = self.previous_op
             print('op:', self.op)
             print('previous op:', self.previous_op)
@@ -142,26 +127,48 @@ class MyWindow(Gtk.Window):
                 if self.this_op != '=':
                     self.put_op_char(self.this_op)
             self.previous_op = self.this_op
+            self.relocate_op_char(self.op)
         else: # place a digit
+            print(button.get_label(), self.num_digits)
+            if button.get_label() == '0' and self.num_digits == 0:
+                return
             start_iter = self.buffer.get_iter_at_line(self.current_line)
             line_end = start_iter.copy()
             line_end.forward_to_line_end()
             self.buffer.place_cursor(line_end)
-            
             self.buffer.insert_at_cursor(button.get_label(), -1)
-            self.previous_button_char = button.get_label()
+            self.num_digits += 1
+        self.previous_button_char = button.get_label()
 
     def place_cursor_at_line_offset(self, line, offset):
         iter = self.buffer.get_iter_at_line_offset(line, offset)
         self.buffer.place_cursor(iter)
-        # self.scroll_buffer(buffer)
-
+    
     def get_cursor_position(self):
         cursor_mark = self.buffer.get_insert()
         cursor_iter = self.buffer.get_iter_at_mark(cursor_mark)
         line = cursor_iter.get_line()
         column = cursor_iter.get_line_offset()
         return line, column
+        
+    def relocate_op_char(self, op_char):
+        print('the op is ', op_char)
+        text = self.get_text_for_line(self.current_line - 2)
+        print('text is:', text)
+        if op_char not in text:
+            return
+        print('text: ', text)
+        if len(op_char) == 0:
+            return
+        text = text.replace(op_char, '').strip(' ')
+        padding_size = 20 - self.num_digits
+        self.num_digits = 0
+        text = op_char + text.rjust(padding_size, ' ') + ' '
+        self.buffer.delete(self.get_line(self.current_line - 2)[0], 
+                           self.get_line(self.current_line - 2)[-1])
+        print('inserting: ', text)
+        self.buffer.insert(self.buffer.get_iter_at_line(
+            self.current_line - 2), text)
 
 win = MyWindow()
 win.connect("destroy", Gtk.main_quit)
