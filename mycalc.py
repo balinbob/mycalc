@@ -86,49 +86,75 @@ class MyWindow(Gtk.Window):
     
     def put_op_char(self, this_op):
         self.buffer.insert_at_cursor(this_op + '    ', -1)
+
+    def validate_op(self, op):
+        if self.previous_op == '=' and op in ['+', '-', '*', '/']:
+            return True
+        if self.num_digits == 0 and op in ['+', '-', '*', '/']:
+            return False
+        
+        if op == '=':
+            if self.previous_button_char in ['=','+', '-', '*', '/']:
+                return False
+            elif self.previous_op == '=':
+                return False    
+            elif self.previous_op in ['+', '-', '*', '/']:
+                return True
+            return False
+        
+        elif self.previous_button_char in ['+', '-', '*', '/']:
+            return False
+        return True
+
+    def op_clicked_prepare(self, button):
+        self.this_op = button.get_label()
+        if not self.validate_op(self.this_op):
+            return False
+        if self.this_op in ['+', '-', '*', '/']:
+            self.num_digits = 0
+        if self.previous_op != '=':
+            self.new_line()
+            self.place_cursor_at_line(self.current_line)
+        if self.previous_op != '=' and self.previous_op != '':
+            self.put_op_char('=')
+        elif self.previous_op == '':
+            self.put_op_char(self.this_op)
+        else:
+            self.put_op_char(self.this_op)
+        if self.current_line > 2:
+            self.scroll_buffer()
+        self.op = self.previous_op
+        return True
     
+    def op_clicked_do_math(self):    
+        if self.current_line > 1 and self.op != '=':
+            n1 = self.get_text_for_line(self.current_line - 2)
+            n2 = self.get_text_for_line(self.current_line - 1)
+            print(n1, self.op, n2)
+            for char in ('+', '-', '*', '/', '='):
+                n1 = n1.replace(char, '')
+                n2 = n2.replace(char, '')
+                print(n1, self.op, n2)
+            try:    
+                result = eval(n1 + self.op + n2)
+            except SyntaxError:
+                return
+            self.buffer.insert_at_cursor(str(result), -1)
+            self.new_line()
+            self.place_cursor_at_line(self.current_line)
+            if self.this_op != '=':
+                self.put_op_char(self.this_op)
+        self.previous_op = self.this_op
+        self.relocate_op_char(self.op)
+
     def on_button_clicked(self, button):
         if button.get_label() in ['=', '+', '-', '*', '/']:
-            print('pb: ', self.previous_button_char)
-            if self.previous_button_char in ['+', '-', '*', '/']:
-                return
-            self.this_op = button.get_label()
-            
-            if self.previous_op != '=':
-                self.new_line()
-            self.place_cursor_at_line(self.current_line)
-            # self.cursor_to_eol()
-            if self.previous_op != '=' and self.previous_op != '':
-                self.put_op_char('=')
-            elif self.previous_op == '':
-                self.put_op_char(self.this_op)
-            else:
-                self.put_op_char(self.this_op)
-            print('current line:', self.current_line)
-            if self.current_line > 2:
-                self.scroll_buffer()
-            self.op = self.previous_op
-            print('op:', self.op)
-            print('previous op:', self.previous_op)
-            
-            if self.current_line > 1 and self.op != '=':
-                n1 = self.get_text_for_line(self.current_line - 2)
-                n2 = self.get_text_for_line(self.current_line - 1)
-                print(n1, self.op, n2)
-                for char in ('+', '-', '*', '/', '='):
-                    n1 = n1.replace(char, '')
-                    n2 = n2.replace(char, '')
-                print(n1, self.op, n2)
-                
-                result = eval(n1 + self.op + n2)
-                self.buffer.insert_at_cursor(str(result), -1)
-                self.new_line()
-                self.place_cursor_at_line(self.current_line)
-                if self.this_op != '=':
-                    self.put_op_char(self.this_op)
-            self.previous_op = self.this_op
-            self.relocate_op_char(self.op)
+            if self.op_clicked_prepare(button):
+                self.op_clicked_do_math()
+        
         else: # place a digit
+            if self.previous_op == '=':
+                return
             print(button.get_label(), self.num_digits)
             if button.get_label() == '0' and self.num_digits == 0:
                 return
