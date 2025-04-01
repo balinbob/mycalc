@@ -23,8 +23,8 @@ class MyWindow(Gtk.Window):
         self.previous_op = ''
         self.previous_button_char = ''
         self.num_digits = 0
-        calc_labels = ['7', '8', '9', '+', '4', '5', '6', '-', '1', '2', '3', '*', '=', '0', '.', '/']
-        for i in range(4):
+        calc_labels = ['C', 'CE', '<X', '+/-', '7', '8', '9', '+', '4', '5', '6', '-', '1', '2', '3', '*', '=', '0', '.', '/']
+        for i in range(5):
             for j in range(4):
                 if (i*4+j) < len(calc_labels):
                     button = Gtk.Button(label=calc_labels[i*4+j])
@@ -50,8 +50,7 @@ class MyWindow(Gtk.Window):
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
         self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)                
-        # self.relocate_op_char()
-
+  
     def scroll_buffer(self):
         end_iter = self.buffer.get_end_iter()
         mark = self.buffer.create_mark(None, end_iter, False)
@@ -131,7 +130,8 @@ class MyWindow(Gtk.Window):
             n1 = self.get_text_for_line(self.current_line - 2)
             n2 = self.get_text_for_line(self.current_line - 1)
             print(n1, self.op, n2)
-            for char in ('+', '-', '*', '/', '='):
+
+            for char in ('+', '- ', '*', '/', '='):
                 n1 = n1.replace(char, '')
                 n2 = n2.replace(char, '')
                 print(n1, self.op, n2)
@@ -147,12 +147,40 @@ class MyWindow(Gtk.Window):
         self.previous_op = self.this_op
         self.relocate_op_char(self.op)
 
-    def on_button_clicked(self, button):
+    def do_special_key(self, button):
+        op = button.get_label()
+        print('key: ', op)
+        if op == '+/-':
+            if self.num_digits > 0:
+                text = self.get_text_for_line(self.current_line)
+                import re
+                sign = re.sub('.*(.)[0-9]', r'\1', text)
+                print('sign: ', sign)
+                if sign == '-':
+                    text = re.sub("([+|-|*|/] *)-([0-9]+)", r"\1\2", text)
+                else:
+                    text = re.sub("([+|-|*|/] *)([0-9]+)", r"\1-\2", text)
+                self.buffer.delete(self.get_line(self.current_line)[0], 
+                                   self.get_line(self.current_line)[-1])
+                print('inserting: ', text)
+                self.buffer.insert(self.buffer.get_iter_at_line(
+                self.current_line), text)
+                start_iter = self.buffer.get_start_iter()
+                end_iter = self.buffer.get_end_iter()
+                self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)                
+                
+                 
+    def on_button_clicked(self, button, minus_sign='False'):
+        
         if button.get_label() in ['=', '+', '-', '*', '/']:
             if self.op_clicked_prepare(button):
                 self.op_clicked_do_math()
-        
-        else: # place a digit
+
+        elif button.get_label() in ['C', 'CE', '<X', "+/-"]:
+            self.do_special_key(button)
+
+        # place a digit
+        else:
             if self.previous_op == '=':
                 return
             print(button.get_label(), self.num_digits)
