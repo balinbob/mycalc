@@ -1,9 +1,14 @@
+# module providing regex substitution
+import re
+# gobject introspection
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
-import re
+
 
 class MyWindow(Gtk.Window):
+    this_op = ''
+    op = ''
     def __init__(self):
         super().__init__(title="Hello, PyGObject")
         self.set_default_size(300, 600)
@@ -18,13 +23,15 @@ class MyWindow(Gtk.Window):
         self.scrollbar = Gtk.ScrolledWindow()
         self.scrollbar.add(self.textview)
         self.scrollbar.set_vexpand(True)
-        self.current_line = 0        
+        self.current_line = 0
         self.main_vbox.pack_start(self.scrollbar, True, True, 0)
-        self.right_align_tag = self.textview.get_buffer().create_tag("right_align", justification=Gtk.Justification.RIGHT)
+        self.right_align_tag = self.textview.get_buffer().create_tag(\
+            "right_align", justification=Gtk.Justification.RIGHT)
         self.previous_op = ''
         self.previous_button_char = ''
         self.num_digits = 0
-        calc_labels = ['C', 'CE', '<X', '+/-', '7', '8', '9', '+', '4', '5', '6', '-', '1', '2', '3', '*', '=', '0', '.', '/']
+        calc_labels = ['C', 'CE', '<X', '+/-', '7', '8', '9', '+', '4',
+                       '5', '6', '-', '1', '2', '3', '*', '=', '0', '.', '/']
         for i in range(5):
             for j in range(4):
                 if (i*4+j) < len(calc_labels):
@@ -36,7 +43,7 @@ class MyWindow(Gtk.Window):
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
         self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)
-        
+
     def set_textview_lines_and_rows(self, columns, rows):
         buffer = self.textview.get_buffer()
         text = '\n'.join(' ' * columns for _ in range(rows))
@@ -50,8 +57,8 @@ class MyWindow(Gtk.Window):
             self.buffer.insert(end_iter, ' \n ')
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
-        self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)                
-  
+        self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)
+
     def scroll_buffer(self):
         end_iter = self.buffer.get_end_iter()
         mark = self.buffer.create_mark(None, end_iter, False)
@@ -73,17 +80,17 @@ class MyWindow(Gtk.Window):
         self.buffer.place_cursor(cursor_iter)
 
     def place_cursor_at_line(self, line_num):
-        iter = self.buffer.get_iter_at_line(line_num)
-        self.buffer.place_cursor(iter)
+        iter_ = self.buffer.get_iter_at_line(line_num)
+        self.buffer.place_cursor(iter_)
 
     def get_text_for_line(self, line_num):
         (begin, end) = self.get_line(line_num)
         return self.buffer.get_text(begin, end, -1).strip(' ')
-    
+
     def get_line_start_iter(self):
         cursor_iter = self.buffer.get_iter_at_mark(self.buffer.get_insert())
         return cursor_iter, self.buffer.get_iter_at_line(cursor_iter.get_line())
-    
+
     def put_op_char(self, this_op):
         self.buffer.insert_at_cursor(this_op + '    ', -1)
 
@@ -92,7 +99,6 @@ class MyWindow(Gtk.Window):
             return True
         if self.num_digits == 0 and op in ['+', '-', '*', '/']:
             return False
-        
         if op == '=':
             if self.previous_button_char in ['=','+', '-', '*', '/']:
                 return False
@@ -101,7 +107,6 @@ class MyWindow(Gtk.Window):
             elif self.previous_op in ['+', '-', '*', '/']:
                 return True
             return False
-        
         elif self.previous_button_char in ['+', '-', '*', '/']:
             return False
         return True
@@ -125,7 +130,19 @@ class MyWindow(Gtk.Window):
             self.scroll_buffer()
         self.op = self.previous_op
         return True
-    
+
+    def _eval(self, n1, n2, op):
+        n1 = float(n1)
+        n2 = float(n2)
+        if op == '+':
+            return n1 + n2
+        elif op == '-':
+            return n1 - n2
+        elif op == '*':
+            return n1 * n2
+        elif op == '/':
+            return n1 / n2
+
     def op_clicked_do_math(self):    
         if self.current_line > 1 and self.op != '=':
             n1 = self.get_text_for_line(self.current_line - 2)
@@ -135,8 +152,8 @@ class MyWindow(Gtk.Window):
             for char in ('+', '- ', '*', '/', '='):
                 n1 = n1.replace(char, '')
                 n2 = n2.replace(char, '')
-            try:    
-                result = eval(n1 + self.op + n2)
+            try:
+                result = self._eval(n1, n2, self.op)
             except SyntaxError:
                 return
             self.buffer.insert_at_cursor(str(result), -1)
@@ -167,10 +184,7 @@ class MyWindow(Gtk.Window):
                 start_iter = self.buffer.get_start_iter()
                 end_iter = self.buffer.get_end_iter()
                 self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)                
-                
-                 
-    def on_button_clicked(self, button, minus_sign='False'):
-        
+    def on_button_clicked(self, button):
         if button.get_label() in ['=', '+', '-', '*', '/']:
             if self.op_clicked_prepare(button):
                 self.op_clicked_do_math()
@@ -194,16 +208,16 @@ class MyWindow(Gtk.Window):
         self.previous_button_char = button.get_label()
 
     def place_cursor_at_line_offset(self, line, offset):
-        iter = self.buffer.get_iter_at_line_offset(line, offset)
-        self.buffer.place_cursor(iter)
-    
+        iter_ = self.buffer.get_iter_at_line_offset(line, offset)
+        self.buffer.place_cursor(iter_)
+
     def get_cursor_position(self):
         cursor_mark = self.buffer.get_insert()
         cursor_iter = self.buffer.get_iter_at_mark(cursor_mark)
         line = cursor_iter.get_line()
         column = cursor_iter.get_line_offset()
         return line, column
-        
+
     def _relocate_op_char(self, op_char):
         """
         relocate the operator char to the leftmost position in the line
@@ -216,11 +230,9 @@ class MyWindow(Gtk.Window):
         text = self.get_text_for_line(line_num)
         if op_char not in text:
             return
-        print('|' + text + '|')
         text = text.replace(op_char, '').lstrip(' ')
         padding_size = 20 - len(text)
         text = op_char + text.rjust(padding_size) + ' '
-        print(len(text), text)
         self.buffer.delete(self.get_line(line_num)[0], 
                            self.get_line(line_num)[1])
         self.buffer.insert(self.buffer.get_iter_at_line(line_num), text)
