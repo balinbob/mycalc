@@ -1,6 +1,7 @@
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
+import re
 
 class MyWindow(Gtk.Window):
     def __init__(self):
@@ -134,7 +135,6 @@ class MyWindow(Gtk.Window):
             for char in ('+', '- ', '*', '/', '='):
                 n1 = n1.replace(char, '')
                 n2 = n2.replace(char, '')
-                print(n1, self.op, n2)
             try:    
                 result = eval(n1 + self.op + n2)
             except SyntaxError:
@@ -145,7 +145,7 @@ class MyWindow(Gtk.Window):
             if self.this_op != '=':
                 self.put_op_char(self.this_op)
         self.previous_op = self.this_op
-        self.relocate_op_char(self.op)
+        self._relocate_op_char(self.op)
 
     def do_special_key(self, button):
         op = button.get_label()
@@ -153,7 +153,6 @@ class MyWindow(Gtk.Window):
         if op == '+/-':
             if self.num_digits > 0:
                 text = self.get_text_for_line(self.current_line)
-                import re
                 sign = re.sub('.*(.)[0-9]', r'\1', text)
                 print('sign: ', sign)
                 if sign == '-':
@@ -205,24 +204,26 @@ class MyWindow(Gtk.Window):
         column = cursor_iter.get_line_offset()
         return line, column
         
-    def relocate_op_char(self, op_char):
-        print('the op is ', op_char)
-        text = self.get_text_for_line(self.current_line - 2)
-        print('text is:', text)
+    def _relocate_op_char(self, op_char):
+        """
+        relocate the operator char to the leftmost position in the line
+        
+        takes the text in the second line from the bottom, removes the operator
+        char, removes any leading whitespace, and then appends the operator char
+        to the left and right pads the text with spaces to 20 characters long
+        """
+        line_num = self.current_line - 2
+        text = self.get_text_for_line(line_num)
         if op_char not in text:
             return
-        print('text: ', text)
-        if len(op_char) == 0:
-            return
-        text = text.replace(op_char, '').strip(' ')
-        padding_size = 20 - self.num_digits
-        self.num_digits = 0
-        text = op_char + text.rjust(padding_size, ' ') + ' '
-        self.buffer.delete(self.get_line(self.current_line - 2)[0], 
-                           self.get_line(self.current_line - 2)[-1])
-        print('inserting: ', text)
-        self.buffer.insert(self.buffer.get_iter_at_line(
-            self.current_line - 2), text)
+        print('|' + text + '|')
+        text = text.replace(op_char, '').lstrip(' ')
+        padding_size = 20 - len(text)
+        text = op_char + text.rjust(padding_size) + ' '
+        print(len(text), text)
+        self.buffer.delete(self.get_line(line_num)[0], 
+                           self.get_line(line_num)[1])
+        self.buffer.insert(self.buffer.get_iter_at_line(line_num), text)
 
 win = MyWindow()
 win.connect("destroy", Gtk.main_quit)
