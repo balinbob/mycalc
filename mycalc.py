@@ -44,11 +44,11 @@ class MyWindow(Gtk.Window):
                     button = Gtk.Button(label=calc_labels[i*4+j])
                     button.get_child()
                     button.set_margin_top(5)
-                    button.set_size_request(50, 50)
+                    button.set_size_request(80, 80)
                     button.connect("clicked", self.on_button_clicked)
                     self.buttons.attach(button, j, i, 1, 1)
         
-        self.set_button_font('Monospace Bold 10')
+        self.set_button_font('Monospace Bold 12')
         self.set_textview_lines_and_rows(1, 1)
         self.buffer = self.textview.get_buffer()
         start_iter = self.buffer.get_start_iter()
@@ -111,7 +111,7 @@ class MyWindow(Gtk.Window):
 
     def get_text_for_line(self, line_num):
         (begin, end) = self.get_line(line_num)
-        return self.buffer.get_text(begin, end, -1).strip(' ')
+        return self.buffer.get_text(begin, end, -1) # .strip(' ')
 
     def get_line_start_iter(self):
         cursor_iter = self.buffer.get_iter_at_mark(self.buffer.get_insert())
@@ -119,12 +119,15 @@ class MyWindow(Gtk.Window):
     def reverse_sign(self):
         if self.num_digits > -1:
             text = self.get_text_for_line(self.current_line)
-            sign = re.sub("^[-|+|*|/]+ *([ |-]+)[0-9]*", r"\1", text)
+            sign = re.sub(r"^[-+*/]+\s*([ -]+)[0-9]*", r"\1", text)
             print('sign: |', sign+'|', len(sign))
             if sign == '-':
-                text = re.sub("^([-|+|*|/] *)-([0-9]*)", r"\1\2", text)
+                text = re.sub(r"^([-+*/]\s*)-([0-9]*)", r"\1\2", text)
             else:
-                text = re.sub("^([-|+|*|/] *)([0-9]*)", r"\1-\2", text)
+                print('text: ', text, 'len: ', len(text))
+                text = re.sub(r'([-+*/])(\s+)([0-9]*)', r'\1\2-\3', text)
+                print('text: ', text)
+                print(f"'{text}'")
             self.replace_line(self.current_line, text)
             self.cursor_to_eol()
             self.right_align_buffer()
@@ -151,7 +154,7 @@ class MyWindow(Gtk.Window):
         self.num_digits = 0
         self.right_align_buffer()
     def put_op_char(self, this_op):
-        self.cursor_to_end()
+        #self.cursor_to_end()
         self.buffer.insert_at_cursor(this_op + '    ', -1)
         self.right_align_buffer()
 
