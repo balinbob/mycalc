@@ -13,18 +13,22 @@ class MyWindow(Gtk.Window):
         super().__init__(title="Hello, PyGObject")
         self.set_default_size(300, 600)
 
-        self.main_vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.add(self.main_vbox)
+        self.vpaned = Gtk.Paned(orientation=Gtk.Orientation.VERTICAL)
+        self.vpaned.set_position(100)
 
+        self.add(self.vpaned)
         self.buttons = Gtk.Grid()
-        self.main_vbox.pack_start(self.buttons, True, True, 0)
+        self.buttons.set_size_request(300, 300)
         self.textview = Gtk.TextView()
         self.textview.set_editable(False)
+        self.textview.set_size_request(300, 300)
         self.scrollbar = Gtk.ScrolledWindow()
         self.scrollbar.add(self.textview)
         self.scrollbar.set_vexpand(True)
         self.current_line = 0
-        self.main_vbox.pack_start(self.scrollbar, True, True, 0)
+        self.vpaned.pack1(self.buttons, False, False)
+        self.vpaned.pack2(self.scrollbar, True, False)
+        
         self.right_align_tag = self.textview.get_buffer().create_tag(\
             "right_align", justification=Gtk.Justification.RIGHT)
         self.previous_op = ''
@@ -35,9 +39,16 @@ class MyWindow(Gtk.Window):
         for i in range(5):
             for j in range(4):
                 if (i*4+j) < len(calc_labels):
+                    # font_desc_str = Pango.FontDescription.from_string("Monospace 14")
+                    
                     button = Gtk.Button(label=calc_labels[i*4+j])
+                    button.get_child()
+                    button.set_margin_top(5)
+                    button.set_size_request(50, 50)
                     button.connect("clicked", self.on_button_clicked)
                     self.buttons.attach(button, j, i, 1, 1)
+        
+        self.set_button_font('Monospace Bold 10')
         self.set_textview_lines_and_rows(1, 1)
         self.buffer = self.textview.get_buffer()
         start_iter = self.buffer.get_start_iter()
@@ -45,10 +56,16 @@ class MyWindow(Gtk.Window):
         self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)
         self.set_textview_font('Monospace Bold 10')
 
+    
     def set_textview_lines_and_rows(self, columns, rows):
         buffer = self.textview.get_buffer()
         text = '\n'.join(' ' * columns for _ in range(rows))
         buffer.set_text(text)
+
+    def set_button_font(self, desc_str):
+        font_desc_str = Pango.FontDescription.from_string(desc_str)
+        for button in self.buttons.get_children():
+            button.modify_font(font_desc_str)
 
     def set_textview_font(self, desc_str):
         font_desc_str = Pango.FontDescription.from_string(desc_str)
@@ -99,14 +116,42 @@ class MyWindow(Gtk.Window):
     def get_line_start_iter(self):
         cursor_iter = self.buffer.get_iter_at_mark(self.buffer.get_insert())
         return cursor_iter, self.buffer.get_iter_at_line(cursor_iter.get_line())
-
+    def reverse_sign(self):
+        if self.num_digits > 0:
+            text = self.get_text_for_line(self.current_line)
+            sign = re.sub("^[-|+|*|/]+ *([ |-]+)[0-9]+", r"\1", text)
+            print('sign: |', sign+'|', len(sign))
+            if sign == '-':
+                text = re.sub("^([-|+|*|/] *)-([0-9]+)", r"\1\2", text)
+            else:
+                text = re.sub("^([-|+|*|/] *)([0-9]+)", r"\1-\2", text)
+            self.replace_line(self.current_line, text)
+            self.cursor_to_eol()
+            self.right_align_buffer()
+            
+            
+            # self.buffer.delete(self.get_line(self.current_line)[0], 
+              #                  self.get_line(self.current_line)[-1])
+            # print('inserting: ', text)
+            # self.buffer.insert(self.buffer.get_iter_at_line(
+            #                   self.current_line), text)
+    def clear_buffer(self):
+        self.buffer.delete(self.buffer.get_start_iter(), self.buffer.get_end_iter())
+        self.set_textview_lines_and_rows(1, 1)
+        self.current_line = 0
+        self.previous_op = ''
+        self.previous_button_char = ''
+        self.num_digits = 0
+        self.right_align_buffer()
     def put_op_char(self, this_op):
+        self.cursor_to_end()
         self.buffer.insert_at_cursor(this_op + '    ', -1)
+        self.right_align_buffer()
 
     def validate_op(self, op):
         if self.previous_op == '=' and op in ['+', '-', '*', '/']:
             return True
-        if self.num_digits == 0 and op in ['+', '-', '*', '/']:
+        if self.num_digits == 0:  # and op in ['+', '-', '*', '/']:
             return False
         if op == '=':
             if self.previous_button_char in ['=','+', '-', '*', '/']:
@@ -126,6 +171,10 @@ class MyWindow(Gtk.Window):
             return False
         if self.this_op in ['+', '-', '*', '/']:
             self.num_digits = 0
+            if self.current_line == 0:
+                self.replace_line(self.current_line,
+                                  self.get_text_for_line(self.current_line) + ' ')
+
         if self.previous_op != '=':
             self.new_line()
             self.place_cursor_at_line(self.current_line)
@@ -135,7 +184,7 @@ class MyWindow(Gtk.Window):
             self.put_op_char(self.this_op)
         else:
             self.put_op_char(self.this_op)
-        if self.current_line > 2:
+        if self.current_line > 0:
             self.scroll_buffer()
         self.op = self.previous_op
         return True
@@ -177,26 +226,16 @@ class MyWindow(Gtk.Window):
         op = button.get_label()
         print('key: ', op)
         if op == 'C':
-            self.replace_line(self.current_line, '  ***  ***  ')
+            self.clear_buffer()
+        if op == 'CE':
+            self.replace_line(self.current_line, '')
+            self.num_digits = 0
+            self.previous_op = '='
+            self.right_align_buffer()
         if op == '<X':
             self.backspace_digit()
-        elif op == '+/-':
-            if self.num_digits > 0:
-                text = self.get_text_for_line(self.current_line)
-                sign = re.sub("^[-|+|*|/]+ *([ |-]+)[0-9]+", r"\1", text)
-                print('sign: |', sign+'|', len(sign))
-                if sign == '-':
-                    text = re.sub("^([-|+|*|/] *)-([0-9]+)", r"\1\2", text)
-                else:
-                    text = re.sub("^([-|+|*|/] *)([0-9]+)", r"\1-\2", text)
-                self.buffer.delete(self.get_line(self.current_line)[0], 
-                                   self.get_line(self.current_line)[-1])
-                print('inserting: ', text)
-                self.buffer.insert(self.buffer.get_iter_at_line(
-                self.current_line), text)
-                start_iter = self.buffer.get_start_iter()
-                end_iter = self.buffer.get_end_iter()
-                self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)                
+        if op == '+/-':
+            self.reverse_sign()
     def on_button_clicked(self, button):
         if button.get_label() in ['=', '+', '-', '*', '/']:
             if self.op_clicked_prepare(button):
@@ -253,9 +292,9 @@ class MyWindow(Gtk.Window):
         if op_char not in text:
             return
         text = text.replace(op_char, '').lstrip(' ')
-        padding_size = 20 - len(text)
+        padding_size = 20 #- len(text)
         text = op_char + text.rjust(padding_size) + '  '
-        self.buffer.delete(self.get_line(line_num)[0], 
+        self.buffer.delete(self.get_line(line_num)[0],
                            self.get_line(line_num)[1])
         self.buffer.insert(self.buffer.get_iter_at_line(line_num), text)
 
