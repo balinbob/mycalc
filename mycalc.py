@@ -18,7 +18,7 @@ class MyWindow(Gtk.Window):
 
         self.add(self.vpaned)
         self.buttons = Gtk.Grid()
-        self.buttons.set_size_request(300, 300)
+        self.buttons.set_size_request(330, 330)
         self.textview = Gtk.TextView()
         self.textview.set_editable(False)
         self.textview.set_size_request(300, 300)
@@ -117,14 +117,14 @@ class MyWindow(Gtk.Window):
         cursor_iter = self.buffer.get_iter_at_mark(self.buffer.get_insert())
         return cursor_iter, self.buffer.get_iter_at_line(cursor_iter.get_line())
     def reverse_sign(self):
-        if self.num_digits > 0:
+        if self.num_digits > -1:
             text = self.get_text_for_line(self.current_line)
-            sign = re.sub("^[-|+|*|/]+ *([ |-]+)[0-9]+", r"\1", text)
+            sign = re.sub("^[-|+|*|/]+ *([ |-]+)[0-9]*", r"\1", text)
             print('sign: |', sign+'|', len(sign))
             if sign == '-':
-                text = re.sub("^([-|+|*|/] *)-([0-9]+)", r"\1\2", text)
+                text = re.sub("^([-|+|*|/] *)-([0-9]*)", r"\1\2", text)
             else:
-                text = re.sub("^([-|+|*|/] *)([0-9]+)", r"\1-\2", text)
+                text = re.sub("^([-|+|*|/] *)([0-9]*)", r"\1-\2", text)
             self.replace_line(self.current_line, text)
             self.cursor_to_eol()
             self.right_align_buffer()
@@ -136,7 +136,14 @@ class MyWindow(Gtk.Window):
             # self.buffer.insert(self.buffer.get_iter_at_line(
             #                   self.current_line), text)
     def clear_buffer(self):
-        self.buffer.delete(self.buffer.get_start_iter(), self.buffer.get_end_iter())
+        """
+        clear_buffer
+
+        clear the buffer and reset all the variables to their startup
+        values
+        """
+        self.buffer.delete(self.buffer.get_start_iter(),
+                           self.buffer.get_end_iter())
         self.set_textview_lines_and_rows(1, 1)
         self.current_line = 0
         self.previous_op = ''
@@ -149,6 +156,24 @@ class MyWindow(Gtk.Window):
         self.right_align_buffer()
 
     def validate_op(self, op):
+        """
+        validate_op
+
+        validate the current state of the calculator and the last
+        button clicked.  If the current state is valid, return True,
+        otherwise return False.
+
+        The current state is valid if the following conditions are met:
+
+        - the last button clicked is not an operator (i.e. +=-*/)
+        - the last button clicked is not the '=' button
+        - the last operator button clicked is not the same as the
+          current operator button clicked
+        - the user has not clicked the '=' button and then clicked
+          an operator button
+        - the user has not clicked the '=' button and then clicked
+          the '=' button again
+        """
         if self.previous_op == '=' and op in ['+', '-', '*', '/']:
             return True
         if self.num_digits == 0:  # and op in ['+', '-', '*', '/']:
@@ -166,6 +191,37 @@ class MyWindow(Gtk.Window):
         return True
 
     def op_clicked_prepare(self, button):
+        """
+        op_clicked_prepare
+
+        This method is called when an operator button is clicked.  It
+        validates the current state of the calculator and the last button
+        clicked and performs any necessary operations to prepare the
+        calculator for the operator button that was clicked.
+
+        The method returns True if the operator button should be processed
+        and False if it should not be processed.
+
+        The method performs the following operations:
+
+        - validates the current state of the calculator and the last button
+          clicked
+        - if the operator button is +, -, *, or /, it resets the number of
+          digits to 0 and inserts a space after the number if the number is
+          on the first line
+        - if the previous operator is not =, it inserts a new line and
+          positions the cursor at the new line
+        - if the previous operator is not = and the previous operator is
+          not the empty string, it inserts the = operator after the number
+        - if the previous operator is the empty string, it inserts the
+          operator after the number
+        - if the previous operator is not the empty string, it inserts the
+          operator after the number
+        - if the current line is greater than 0, it scrolls the buffer to
+          the end
+        - it sets the op variable to the previous operator
+        """
+        
         self.this_op = button.get_label()
         if not self.validate_op(self.this_op):
             return False
@@ -199,7 +255,7 @@ class MyWindow(Gtk.Window):
         elif op == '*':
             return n1 * n2
         elif op == '/':
-            return n1 / n2
+            return round(n1 / n2, 8)
 
     def op_clicked_do_math(self):    
         if self.current_line > 1 and self.op != '=':
@@ -236,27 +292,27 @@ class MyWindow(Gtk.Window):
             self.backspace_digit()
         if op == '+/-':
             self.reverse_sign()
+
+    def place_digit(self, button):
+        if self.previous_op == '=':
+            return
+        print(button.get_label(), self.num_digits)
+        if button.get_label() == '0' and self.num_digits == 0:
+            return
+        start_iter = self.buffer.get_iter_at_line(self.current_line)
+        line_end = start_iter.copy()
+        line_end.forward_to_line_end()
+        self.buffer.place_cursor(line_end)
+        self.buffer.insert_at_cursor(button.get_label(), -1)
+        self.num_digits += 1
     def on_button_clicked(self, button):
         if button.get_label() in ['=', '+', '-', '*', '/']:
             if self.op_clicked_prepare(button):
                 self.op_clicked_do_math()
-
         elif button.get_label() in ['C', 'CE', '<X', "+/-"]:
             self.do_special_key(button)
-
-        # place a digit
         else:
-            if self.previous_op == '=':
-                return
-            print(button.get_label(), self.num_digits)
-            if button.get_label() == '0' and self.num_digits == 0:
-                return
-            start_iter = self.buffer.get_iter_at_line(self.current_line)
-            line_end = start_iter.copy()
-            line_end.forward_to_line_end()
-            self.buffer.place_cursor(line_end)
-            self.buffer.insert_at_cursor(button.get_label(), -1)
-            self.num_digits += 1
+            self.place_digit(button)
         self.previous_button_char = button.get_label()
 
     def replace_line(self, line_num, text):
@@ -267,7 +323,6 @@ class MyWindow(Gtk.Window):
         self.buffer.insert_at_cursor(text, -1)
         self.right_align_buffer()
         self.cursor_to_eol()
-        
     def place_cursor_at_line_offset(self, line, offset):
         iter_ = self.buffer.get_iter_at_line_offset(line, offset)
         self.buffer.place_cursor(iter_)
