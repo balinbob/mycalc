@@ -3,7 +3,7 @@ import re
 # gobject introspection
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gtk, Pango
 
 
 class MyWindow(Gtk.Window):
@@ -38,23 +38,32 @@ class MyWindow(Gtk.Window):
                     button = Gtk.Button(label=calc_labels[i*4+j])
                     button.connect("clicked", self.on_button_clicked)
                     self.buttons.attach(button, j, i, 1, 1)
-        self.set_textview_lines_and_rows(1, 4)
+        self.set_textview_lines_and_rows(1, 1)
         self.buffer = self.textview.get_buffer()
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
         self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)
+        self.set_textview_font('Monospace Bold 10')
 
     def set_textview_lines_and_rows(self, columns, rows):
         buffer = self.textview.get_buffer()
         text = '\n'.join(' ' * columns for _ in range(rows))
         buffer.set_text(text)
 
+    def set_textview_font(self, desc_str):
+        font_desc_str = Pango.FontDescription.from_string(desc_str)
+        self.textview.modify_font(font_desc_str)
+
+    def right_align_buffer(self):
+        start_iter = self.buffer.get_start_iter()
+        end_iter = self.buffer.get_end_iter()
+        self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)
+
     def new_line(self):
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
         self.current_line += 1
-        if self.current_line > 3:
-            self.buffer.insert(end_iter, ' \n ')
+        self.buffer.insert(end_iter, ' \n ')
         start_iter = self.buffer.get_start_iter()
         end_iter = self.buffer.get_end_iter()
         self.buffer.apply_tag(self.right_align_tag, start_iter, end_iter)
@@ -167,15 +176,19 @@ class MyWindow(Gtk.Window):
     def do_special_key(self, button):
         op = button.get_label()
         print('key: ', op)
-        if op == '+/-':
+        if op == 'C':
+            self.replace_line(self.current_line, '  ***  ***  ')
+        if op == '<X':
+            self.backspace_digit()
+        elif op == '+/-':
             if self.num_digits > 0:
                 text = self.get_text_for_line(self.current_line)
-                sign = re.sub('.*(.)[0-9]', r'\1', text)
-                print('sign: ', sign)
+                sign = re.sub("^[-|+|*|/]+ *([ |-]+)[0-9]+", r"\1", text)
+                print('sign: |', sign+'|', len(sign))
                 if sign == '-':
-                    text = re.sub("([+|-|*|/] *)-([0-9]+)", r"\1\2", text)
+                    text = re.sub("^([-|+|*|/] *)-([0-9]+)", r"\1\2", text)
                 else:
-                    text = re.sub("([+|-|*|/] *)([0-9]+)", r"\1-\2", text)
+                    text = re.sub("^([-|+|*|/] *)([0-9]+)", r"\1-\2", text)
                 self.buffer.delete(self.get_line(self.current_line)[0], 
                                    self.get_line(self.current_line)[-1])
                 print('inserting: ', text)
@@ -207,6 +220,15 @@ class MyWindow(Gtk.Window):
             self.num_digits += 1
         self.previous_button_char = button.get_label()
 
+    def replace_line(self, line_num, text):
+        (begin, end) = self.get_line(line_num)
+        self.buffer.delete(begin, end)
+        print('replacing line: ', line_num, 'with: ', text)
+        self.cursor_to_eol()
+        self.buffer.insert_at_cursor(text, -1)
+        self.right_align_buffer()
+        self.cursor_to_eol()
+        
     def place_cursor_at_line_offset(self, line, offset):
         iter_ = self.buffer.get_iter_at_line_offset(line, offset)
         self.buffer.place_cursor(iter_)
@@ -232,10 +254,19 @@ class MyWindow(Gtk.Window):
             return
         text = text.replace(op_char, '').lstrip(' ')
         padding_size = 20 - len(text)
-        text = op_char + text.rjust(padding_size) + ' '
+        text = op_char + text.rjust(padding_size) + '  '
         self.buffer.delete(self.get_line(line_num)[0], 
                            self.get_line(line_num)[1])
         self.buffer.insert(self.buffer.get_iter_at_line(line_num), text)
+
+    def backspace_digit(self):
+        self.num_digits -= 1
+        if self.num_digits < 0:
+            self.num_digits = 0
+            return
+        start, end = self.get_line(self.current_line)
+        text = self.buffer.get_text(start, end, False)[0:-1]
+        self.replace_line(self.current_line, text)
 
 win = MyWindow()
 win.connect("destroy", Gtk.main_quit)
