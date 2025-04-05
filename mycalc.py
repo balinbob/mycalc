@@ -9,6 +9,7 @@ from gi.repository import Gtk, Pango
 class MyWindow(Gtk.Window):
     this_op = ''
     op = ''
+    dot = False
     def __init__(self):
         super().__init__(title="Hello, PyGObject")
         self.set_default_size(300, 600)
@@ -131,13 +132,6 @@ class MyWindow(Gtk.Window):
             self.replace_line(self.current_line, text)
             self.cursor_to_eol()
             self.right_align_buffer()
-            
-            
-            # self.buffer.delete(self.get_line(self.current_line)[0], 
-              #                  self.get_line(self.current_line)[-1])
-            # print('inserting: ', text)
-            # self.buffer.insert(self.buffer.get_iter_at_line(
-            #                   self.current_line), text)
     def clear_buffer(self):
         """
         clear_buffer
@@ -154,7 +148,6 @@ class MyWindow(Gtk.Window):
         self.num_digits = 0
         self.right_align_buffer()
     def put_op_char(self, this_op):
-        #self.cursor_to_end()
         self.buffer.insert_at_cursor(this_op + '    ', -1)
         self.right_align_buffer()
 
@@ -249,6 +242,7 @@ class MyWindow(Gtk.Window):
         return True
 
     def _eval(self, n1, n2, op):
+        self.dot = False
         n1 = float(n1)
         n2 = float(n2)
         if op == '+':
@@ -258,7 +252,7 @@ class MyWindow(Gtk.Window):
         elif op == '*':
             return n1 * n2
         elif op == '/':
-            return round(n1 / n2, 8)
+            return n1 / n2
 
     def op_clicked_do_math(self):    
         if self.current_line > 1 and self.op != '=':
@@ -270,7 +264,7 @@ class MyWindow(Gtk.Window):
                 n1 = n1.replace(char, '')
                 n2 = n2.replace(char, '')
             try:
-                result = self._eval(n1, n2, self.op)
+                result = round(self._eval(n1, n2, self.op), 8)
             except SyntaxError:
                 return
             self.buffer.insert_at_cursor(str(result), -1)
@@ -297,6 +291,10 @@ class MyWindow(Gtk.Window):
             self.reverse_sign()
 
     def place_digit(self, button):
+        if button.get_label() == '.' and self.dot:
+            return
+        if button.get_label() == '.' and not self.dot:
+            self.dot = True
         if self.previous_op == '=':
             return
         print(button.get_label(), self.num_digits)
@@ -362,7 +360,10 @@ class MyWindow(Gtk.Window):
             self.num_digits = 0
             return
         start, end = self.get_line(self.current_line)
-        text = self.buffer.get_text(start, end, False)[0:-1]
+        text = self.buffer.get_text(start, end, False)
+        if text.endswith('.'):
+            self.dot = False
+        text = text[:-1]
         self.replace_line(self.current_line, text)
 
 win = MyWindow()
